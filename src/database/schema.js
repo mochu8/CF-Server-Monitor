@@ -45,8 +45,6 @@ export async function initDatabase(db) {
         server_id TEXT NOT NULL,
         timestamp INTEGER DEFAULT 0,
         cpu REAL DEFAULT 0,
-        ram REAL DEFAULT 0,
-        disk REAL DEFAULT 0,
         load_avg TEXT DEFAULT '0',
         net_in_speed REAL DEFAULT 0,
         net_out_speed REAL DEFAULT 0,
@@ -338,7 +336,7 @@ export async function saveMetricsHistory(db, serverId, metrics, regionCode = '')
     
     await db.prepare(`
       INSERT INTO metrics_history (
-        server_id, timestamp, cpu, ram, disk, load_avg,
+        server_id, timestamp, cpu, load_avg,
         net_in_speed, net_out_speed, net_rx, net_tx,
         processes, tcp_conn, udp_conn,
         ping_ct, ping_cu, ping_cm, ping_bd,
@@ -348,7 +346,7 @@ export async function saveMetricsHistory(db, serverId, metrics, regionCode = '')
         cpu_cores, cpu_info, gpu, gpu_info, arch, os, region, ip_v4, ip_v6, boot_time,
         net_rx_monthly, net_tx_monthly
       ) VALUES (
-        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?, ?,
@@ -362,8 +360,6 @@ export async function saveMetricsHistory(db, serverId, metrics, regionCode = '')
       serverId,
       now,
       parseFloat(metrics.cpu) || 0,
-      parseFloat(metrics.ram) || 0,
-      parseFloat(metrics.disk) || 0,
       metrics.load || metrics.load_avg || '0 0 0',
       parseFloat(metrics.net_in_speed) || 0,
       parseFloat(metrics.net_out_speed) || 0,

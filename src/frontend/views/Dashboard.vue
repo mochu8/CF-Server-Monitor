@@ -145,9 +145,9 @@
               <td>
                 <div class="table-stat">
                   <div class="stat-bar-container" style="width:60px;">
-                    <div class="stat-bar-fill" :style="{ width: (parseFloat(server.ram) || 0) + '%', background: 'var(--accent-purple)' }"></div>
+                    <div class="stat-bar-fill" :style="{ width: (server.ram_total > 0 ? ((server.ram_used / server.ram_total) * 100).toFixed(2) : 0) + '%', background: 'var(--accent-purple)' }"></div>
                   </div>
-                  <span>{{ (parseFloat(server.ram) || 0).toFixed(1) }}%</span>
+                  <span>{{ server.ram_total > 0 ? ((server.ram_used / server.ram_total) * 100).toFixed(2) : '0.00' }}%</span>
                 </div>
               </td>
               <td>

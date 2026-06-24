@@ -334,7 +334,12 @@ const isOnline = computed(() => {
 
 const cpuPercent = computed(() => (parseFloat(server.value.cpu) || 0).toFixed(1))
 const gpuPercent = computed(() => (parseFloat(server.value.gpu) || 0).toFixed(1))
-const ramPercent = computed(() => (parseFloat(server.value.ram) || 0).toFixed(1))
+const ramPercent = computed(() => {
+  if (server.value.ram_total > 0) {
+    return ((server.value.ram_used / server.value.ram_total) * 100).toFixed(2)
+  }
+  return '0.00'
+})
 const diskPercent = computed(() => {
   if (server.value.disk_total > 0) {
     return ((server.value.disk_used / server.value.disk_total) * 100).toFixed(2)
@@ -820,6 +825,39 @@ const updateChartDatasetWithSwap = (chart, datasetIndex, dataPoints) => {
   chart.update('none')
 }
 
+const updateChartDatasetWithRam = (chart, datasetIndex, dataPoints) => {
+  if (!chart) return
+
+  const dataset = chart.data.datasets[datasetIndex]
+  if (!dataset) return
+
+  const endTime = Date.now()
+  const startTime = endTime - currentHours.value * 60 * 60 * 1000
+
+  let processedData = []
+  if (dataPoints && dataPoints.length > 0) {
+    const sampledData = sampleData(dataPoints)
+
+    processedData = sampledData.map(d => {
+      const ramTotal = parseFloat(d.ram_total) || 0
+      const ramUsed = parseFloat(d.ram_used) || 0
+      const percent = ramTotal === 0 ? 0 : (ramUsed / ramTotal) * 100
+      return { x: new Date(d.timestamp).getTime(), y: percent }
+    })
+
+    processedData.sort((a, b) => a.x - b.x)
+    processedData = applyGapBreak(processedData)
+  }
+
+  if (chart.options && chart.options.scales && chart.options.scales.x) {
+    chart.options.scales.x.min = startTime
+    chart.options.scales.x.max = endTime
+  }
+
+  dataset.data = processedData
+  chart.update('none')
+}
+
 const updateChartDatasetWithDisk = (chart, datasetIndex, dataPoints) => {
   if (!chart) return
 
@@ -901,7 +939,7 @@ const loadAllHistory = async (hours) => {
 
     updateChartDataset(charts.cpu, 0, allData, 'timestamp', 'cpu')
     updateChartDataset(charts.gpu, 0, allData, 'timestamp', 'gpu', true)
-    updateChartDataset(charts.ram, 0, allData, 'timestamp', 'ram')
+    updateChartDatasetWithRam(charts.ram, 0, allData)
     updateChartDatasetWithSwap(charts.ram, 1, allData)
     updateChartDatasetWithDisk(charts.disk, 0, allData)
     updateChartDataset(charts.proc, 0, allData, 'timestamp', 'processes')
@@ -1026,7 +1064,8 @@ const fetchCurrentStatus = async (incomingData) => {
     const dataTimestamp = new Date(data.last_updated).getTime()
     appendDataToChart(charts.cpu, 0, dataTimestamp, data.cpu)
     appendDataToChart(charts.gpu, 0, dataTimestamp, data.gpu)
-    appendDataToChart(charts.ram, 0, dataTimestamp, data.ram)
+    const ramPercent = (parseFloat(data.ram_total) > 0) ? (parseFloat(data.ram_used) / parseFloat(data.ram_total)) * 100 : 0
+    appendDataToChart(charts.ram, 0, dataTimestamp, ramPercent)
     const swapPercent = (parseFloat(data.swap_total) > 0) ? (parseFloat(data.swap_used) / parseFloat(data.swap_total)) * 100 : 0
     appendDataToChart(charts.ram, 1, dataTimestamp, swapPercent)
     const diskPercent = (parseFloat(data.disk_total) > 0) ? (parseFloat(data.disk_used) / parseFloat(data.disk_total)) * 100 : 0

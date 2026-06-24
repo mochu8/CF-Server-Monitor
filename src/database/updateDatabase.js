@@ -200,8 +200,6 @@ async function optimizeMetricsHistoryRowid(db) {
         server_id TEXT NOT NULL,
         timestamp INTEGER DEFAULT 0,
         cpu REAL DEFAULT 0,
-        ram REAL DEFAULT 0,
-        disk REAL DEFAULT 0,
         load_avg TEXT DEFAULT '0',
         net_in_speed REAL DEFAULT 0,
         net_out_speed REAL DEFAULT 0,
@@ -248,7 +246,7 @@ async function optimizeMetricsHistoryRowid(db) {
 
     await db.prepare(`
       INSERT INTO metrics_history_new (
-        id, server_id, timestamp, cpu, ram, disk, load_avg,
+        id, server_id, timestamp, cpu, load_avg,
         net_in_speed, net_out_speed, net_rx, net_tx,
         processes, tcp_conn, udp_conn,
         ping_ct, ping_cu, ping_cm, ping_bd,
@@ -259,7 +257,7 @@ async function optimizeMetricsHistoryRowid(db) {
       net_rx_monthly, net_tx_monthly
     )
     SELECT
-      id, server_id, timestamp, cpu, ram, disk, load_avg,
+      id, server_id, timestamp, cpu, load_avg,
       net_in_speed, net_out_speed, net_rx, net_tx,
       processes, tcp_conn, udp_conn,
       ping_ct, ping_cu, ping_cm, ping_bd,
@@ -311,7 +309,7 @@ async function cleanupMetricsHistoryColumns(db) {
     const { results: columns } = await db.prepare(`PRAGMA table_info(metrics_history)`).all();
     const existingCols = columns.map(c => c.name);
     
-    const extraCols = ['country'];
+    const extraCols = ['country', 'ram', 'disk'];
     const colsToDrop = extraCols.filter(col => existingCols.includes(col));
     
     if (colsToDrop.length === 0) {

@@ -122,7 +122,12 @@ const statusColor = computed(() => isOnline.value ? 'var(--accent-green)' : 'var
 const statusText = computed(() => isOnline.value ? trans.value.online : trans.value.offline)
 
 const cpuPercent = computed(() => parseFloat(props.server.cpu || 0).toFixed(1))
-const ramPercent = computed(() => parseFloat(props.server.ram || 0).toFixed(1))
+const ramPercent = computed(() => {
+  if (props.server.ram_total > 0) {
+    return ((props.server.ram_used / props.server.ram_total) * 100).toFixed(2)
+  }
+  return '0.00'
+})
 const diskPercent = computed(() => {
   if (props.server.disk_total > 0) {
     return ((props.server.disk_used / props.server.disk_total) * 100).toFixed(2)
