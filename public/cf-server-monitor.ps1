@@ -60,8 +60,36 @@ param(
     [string]$CtNode = "",
     [string]$CuNode = "",
     [string]$CmNode = "",
-    [string]$BdNode = ""
+    [string]$BdNode = "",
+    
+    [switch]$STA
 )
+
+if (-not $STA -and $host.Runspace.ApartmentState -ne 'STA') {
+    if ($MyInvocation.MyCommand.Path) {
+        $scriptPath = $MyInvocation.MyCommand.Path
+    } elseif ($PSCommandPath) {
+        $scriptPath = $PSCommandPath
+    } else {
+        $scriptPath = Join-Path (Get-Location).Path "cf-server-monitor.ps1"
+    }
+    $argList = "-NoProfile -ExecutionPolicy Bypass -STA -File `"$scriptPath`" $Action -STA"
+    if ($Id) { $argList += " -Id `"$Id`"" }
+    if ($Secret) { $argList += " -Secret `"$Secret`"" }
+    if ($Url) { $argList += " -Url `"$Url`"" }
+    if ($CollectInterval) { $argList += " -CollectInterval `"$CollectInterval`"" }
+    if ($ReportInterval) { $argList += " -ReportInterval `"$ReportInterval`"" }
+    if ($PingType) { $argList += " -PingType `"$PingType`"" }
+    if ($ResetDay) { $argList += " -ResetDay `"$ResetDay`"" }
+    if ($RxCorrection) { $argList += " -RxCorrection `"$RxCorrection`"" }
+    if ($TxCorrection) { $argList += " -TxCorrection `"$TxCorrection`"" }
+    if ($CtNode) { $argList += " -CtNode `"$CtNode`"" }
+    if ($CuNode) { $argList += " -CuNode `"$CuNode`"" }
+    if ($CmNode) { $argList += " -CmNode `"$CmNode`"" }
+    if ($BdNode) { $argList += " -BdNode `"$BdNode`"" }
+    Start-Process powershell.exe -ArgumentList $argList
+    exit 0
+}
 
 $ErrorActionPreference = "Continue"
 $DebugPreference = "SilentlyContinue"
@@ -184,7 +212,7 @@ function Invoke-AsAdmin {
     } else {
         $scriptPath = Join-Path (Get-Location).Path "cf-server-monitor.ps1"
     }
-    $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" $Action"
+    $argList = "-NoProfile -ExecutionPolicy Bypass -STA -File `"$scriptPath`" $Action -STA"
     if ($Id) { $argList += " -Id `"$Id`"" }
     if ($Secret) { $argList += " -Secret `"$Secret`"" }
     if ($Url) { $argList += " -Url `"$Url`"" }
@@ -674,6 +702,7 @@ function Invoke-TrayCollectLoop {
         Write-Log "用户从托盘菜单停止探针" "INFO"
         $trayIcon.Visible = $false
         $trayIcon.Dispose()
+        [System.Windows.Forms.Application]::Exit()
         exit 0
     })
     
@@ -683,6 +712,7 @@ function Invoke-TrayCollectLoop {
         Write-Log "用户从托盘菜单退出" "INFO"
         $trayIcon.Visible = $false
         $trayIcon.Dispose()
+        [System.Windows.Forms.Application]::Exit()
         exit 0
     })
     
@@ -693,27 +723,24 @@ function Invoke-TrayCollectLoop {
     
     Write-Log "探针已启动（托盘模式）" "INFO"
     
-    Invoke-CollectLoop -TrayIcon $trayIcon
+    # 使用 Timer + Application.Run 启动消息泵，托盘菜单才能响应
+    Start-TimerCollectLoop -TrayIcon $trayIcon
 }
 
-function Invoke-CollectLoop {
+function Start-TimerCollectLoop {
     param($TrayIcon = $null)
-    
-    # 加载配置
+
+    # ========================================
+    # 加载配置（与原 Invoke-CollectLoop 相同）
+    # ========================================
     $config = Load-Config
-    
-    # 如果配置文件不存在，使用命令行参数创建临时配置
     if (-not $config) {
         Write-Log "配置文件不存在，使用命令行参数..." "WARN"
-        
-        # 检查是否有命令行参数
         if (-not $Id -or -not $Secret -or -not $Url) {
             Write-Log "错误: 缺少必要参数" "ERROR"
             Write-Host "请使用: .\cf-server-monitor.ps1 run -Id 'ID' -Secret '密钥' -Url '地址'" -ForegroundColor Yellow
             return
         }
-        
-        # 创建临时配置
         $config = @{
             server_id = $Id
             secret = $Secret
@@ -727,18 +754,14 @@ function Invoke-CollectLoop {
             cm_node = if ($CmNode) { $CmNode } else { $DEFAULT_CM }
             bd_node = if ($BdNode) { $BdNode } else { $DEFAULT_BD }
         }
-        
-        # 保存配置供下次使用
         Save-Config -Data $config
         Write-Log "已保存配置到: $CONFIG_FILE" "INFO"
     }
-    
-    # 从配置读取参数（命令行参数优先）
+
     $serverId = if ($Id) { $Id } else { $config.server_id }
     $secret = if ($Secret) { $Secret } else { $config.secret }
     $workerUrl = if ($Url) { $Url.Trim().Trim("'").Trim('"') } else { $config.worker_url.Trim().Trim("'").Trim('"') }
-    
-    # 处理 collect_interval
+
     if ($PSBoundParameters.ContainsKey('CollectInterval')) {
         $collectInterval = [int]$CollectInterval
     } elseif ($config.collect_interval) {
@@ -746,8 +769,7 @@ function Invoke-CollectLoop {
     } else {
         $collectInterval = 0
     }
-    
-    # 处理 report_interval
+
     if ($PSBoundParameters.ContainsKey('ReportInterval')) {
         $reportInterval = [int]$ReportInterval
     } elseif ($config.report_interval) {
@@ -755,8 +777,7 @@ function Invoke-CollectLoop {
     } else {
         $reportInterval = 60
     }
-    
-    # 处理其他参数
+
     if ($PSBoundParameters.ContainsKey('PingType')) {
         $pingType = $PingType
     } elseif ($config.ping_type) {
@@ -764,7 +785,7 @@ function Invoke-CollectLoop {
     } else {
         $pingType = "tcp"
     }
-    
+
     if ($PSBoundParameters.ContainsKey('ResetDay')) {
         $resetDay = [int]$ResetDay
     } elseif ($config.reset_day) {
@@ -781,40 +802,43 @@ function Invoke-CollectLoop {
     $cmNode = $cmNode.Trim()
     $bdNode = $bdNode.Trim()
 
-    # 验证 URL 是否有效
     if ($workerUrl -notmatch '^https?://') {
         Write-Log "警告: worker_url 格式可能不正确: '$workerUrl'" "WARN"
-        Write-Log "尝试清理 URL..." "WARN"
         $workerUrl = $workerUrl.Trim().Trim("'").Trim('"')
         Write-Log "清理后的 URL: '$workerUrl'" "WARN"
     }
-
     if ($workerUrl -notmatch '^https?://') {
         Write-Log "错误: worker_url 无效: '$workerUrl'" "ERROR"
         Write-Log "请检查配置文件: $CONFIG_FILE" "ERROR"
         return
     }
-
     if (-not $serverId -or -not $secret -or -not $workerUrl) {
         Write-Log "配置不完整，请填写 server_id, secret, worker_url" "ERROR"
         return
     }
-
     if ($collectInterval -lt 0) { $collectInterval = 0 }
     if ($reportInterval -lt 1) { $reportInterval = 60 }
     if ($collectInterval -gt 0 -and $reportInterval -lt $collectInterval) {
         $reportInterval = $collectInterval
     }
-    $activeInterval = if ($collectInterval -gt 0) { $collectInterval } else { $reportInterval }
 
-    $prevNet = @{ rx = 0; tx = 0; time = 0 }
-    $prevCpuTime = 0; $prevCpuIdle = 0
-    $lastIpCheck = 0; $lastPingCheck = 0
-    $ipV4 = "0"; $ipV6 = "0"
-    $pingCt = ""; $pingCu = ""; $pingCm = ""; $pingBd = ""
-    $lossCt = ""; $lossCu = ""; $lossCm = ""; $lossBd = ""
-    $lastReportTime = 0
-    $samples = @()
+    # ========================================
+    # 持久状态变量（脚本作用域，跨 Timer Tick 保持）
+    # ========================================
+    $script:cs_prevNet = @{ rx = 0; tx = 0; time = 0 }
+    $script:cs_lastIpCheck = 0
+    $script:cs_lastPingCheck = 0
+    $script:cs_ipV4 = "0"
+    $script:cs_ipV6 = "0"
+    $script:cs_pingCt = ""
+    $script:cs_pingCu = ""
+    $script:cs_pingCm = ""
+    $script:cs_pingBd = ""
+    $script:cs_lossCt = ""
+    $script:cs_lossCu = ""
+    $script:cs_lossCm = ""
+    $script:cs_lossBd = ""
+    $script:cs_lastReportTime = 0
 
     $pingTempFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "cf_probe_ping_results.json")
 
@@ -825,84 +849,86 @@ function Invoke-CollectLoop {
         Start-Sleep -Milliseconds 300
     } catch {}
 
-        Write-Log "探针已启动。 ServerID=$serverId Url='$workerUrl' ReportInterval=${reportInterval}s CollectInterval=${collectInterval}s"
+    Write-Log "探针已启动。 ServerID=$serverId Url='$workerUrl' ReportInterval=${reportInterval}s CollectInterval=${collectInterval}s"
 
-    while ($true) {
-        $loopStart = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+    # ========================================
+    # Timer 驱动采集：每次 Tick 执行一轮采集+上报
+    # ========================================
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = $reportInterval * 1000
+    $timer.Add_Tick({
         try {
-            $now = $loopStart
+            # 捕获外部参数到局部变量，避免作用域问题
+            $srvId = $serverId
+            $sec = $secret
+            $wUrl = $workerUrl
+            $ctN = $ctNode
+            $cuN = $cuNode
+            $cmN = $cmNode
+            $bdN = $bdNode
+            $pType = $pingType
+            $rDay = $resetDay
+            $rInterval = $reportInterval
+            $pFile = $pingTempFile
+
+            $now = [DateTimeOffset]::Now.ToUnixTimeSeconds()
 
             # IP 检测（每 10 分钟）
-            if ($now - $lastIpCheck -ge 600 -or $lastIpCheck -eq 0) {
-                $ipV4 = if (Test-PublicIPv4) { "1" } else { "0" }
-                $ipV6 = if (Test-PublicIPv6) { "1" } else { "0" }
-                $lastIpCheck = $now
+            if ($now - $script:cs_lastIpCheck -ge 600 -or $script:cs_lastIpCheck -eq 0) {
+                $script:cs_ipV4 = if (Test-PublicIPv4) { "1" } else { "0" }
+                $script:cs_ipV6 = if (Test-PublicIPv6) { "1" } else { "0" }
+                $script:cs_lastIpCheck = $now
             }
 
             # Ping 检测（每 30 秒，异步执行）
-            if ($now - $lastPingCheck -ge 30 -or $lastPingCheck -eq 0) {
-                $lastPingCheck = $now
+            if ($now - $script:cs_lastPingCheck -ge 30 -or $script:cs_lastPingCheck -eq 0) {
+                $script:cs_lastPingCheck = $now
                 $existingJob = Get-Job -Name "CFProbePingJob" -ErrorAction SilentlyContinue
                 if (-not $existingJob -or $existingJob.State -eq "Completed") {
                     Remove-PingBackgroundJob
-                    Start-PingBackgroundJob -CtNode $ctNode -CuNode $cuNode -CmNode $cmNode -BdNode $bdNode -PingType $pingType -TempFile $pingTempFile
+                    Start-PingBackgroundJob -CtNode $ctN -CuNode $cuN -CmNode $cmN -BdNode $bdN -PingType $pType -TempFile $pFile
                 }
             }
 
             # 读取异步 Ping 检测结果
-            $pingResults = Read-PingResults -TempFile $pingTempFile
+            $pingResults = Read-PingResults -TempFile $pFile
             if ($pingResults) {
-                $pingCt = if ($pingResults.ct_ping) { $pingResults.ct_ping } else { $pingCt }
-                $pingCu = if ($pingResults.cu_ping) { $pingResults.cu_ping } else { $pingCu }
-                $pingCm = if ($pingResults.cm_ping) { $pingResults.cm_ping } else { $pingCm }
-                $pingBd = if ($pingResults.bd_ping) { $pingResults.bd_ping } else { $pingBd }
-                $lossCt = if ($pingResults.ct_loss) { $pingResults.ct_loss } else { $lossCt }
-                $lossCu = if ($pingResults.cu_loss) { $pingResults.cu_loss } else { $lossCu }
-                $lossCm = if ($pingResults.cm_loss) { $pingResults.cm_loss } else { $lossCm }
-                $lossBd = if ($pingResults.bd_loss) { $pingResults.bd_loss } else { $lossBd }
+                $script:cs_pingCt = if ($pingResults.ct_ping) { $pingResults.ct_ping } else { $script:cs_pingCt }
+                $script:cs_pingCu = if ($pingResults.cu_ping) { $pingResults.cu_ping } else { $script:cs_pingCu }
+                $script:cs_pingCm = if ($pingResults.cm_ping) { $pingResults.cm_ping } else { $script:cs_pingCm }
+                $script:cs_pingBd = if ($pingResults.bd_ping) { $pingResults.bd_ping } else { $script:cs_pingBd }
+                $script:cs_lossCt = if ($pingResults.ct_loss) { $pingResults.ct_loss } else { $script:cs_lossCt }
+                $script:cs_lossCu = if ($pingResults.cu_loss) { $pingResults.cu_loss } else { $script:cs_lossCu }
+                $script:cs_lossCm = if ($pingResults.cm_loss) { $pingResults.cm_loss } else { $script:cs_lossCm }
+                $script:cs_lossBd = if ($pingResults.bd_loss) { $pingResults.bd_loss } else { $script:cs_lossBd }
             }
 
-            # CPU
+            # 采集各项指标
             $cpuPercent = Get-CpuUsage
             $cpuInfo = Get-CpuInfo
             $cpuCores = Get-CpuCores
-
-            # 内存
             $mem = Get-MemoryInfo
             $swap = Get-SwapInfo
-
-            # 磁盘
             $disk = Get-DiskInfo
 
-            # 网络
             $netStat = Get-NetworkStats
             $rxNow = [long]$netStat.rx
             $txNow = [long]$netStat.tx
+            $netTraffic = Update-MonthlyTraffic -CurrentRx $rxNow -CurrentTx $txNow -ResetDay $rDay
 
-            $netTraffic = Update-MonthlyTraffic -CurrentRx $rxNow -CurrentTx $txNow -ResetDay $resetDay
-
-            $rxPrev = if ($prevNet.time -gt 0) { $prevNet.rx } else { $rxNow }
-            $txPrev = if ($prevNet.time -gt 0) { $prevNet.tx } else { $txNow }
-            $deltaTime = if ($prevNet.time -gt 0) { [math]::Max($now - $prevNet.time, 1) } else { 1 }
+            $rxPrev = if ($script:cs_prevNet.time -gt 0) { $script:cs_prevNet.rx } else { $rxNow }
+            $txPrev = if ($script:cs_prevNet.time -gt 0) { $script:cs_prevNet.tx } else { $txNow }
+            $deltaTime = if ($script:cs_prevNet.time -gt 0) { [math]::Max($now - $script:cs_prevNet.time, 1) } else { 1 }
             $rxSpeed = [math]::Max(($rxNow - $rxPrev) / $deltaTime, 0)
             $txSpeed = [math]::Max(($txNow - $txPrev) / $deltaTime, 0)
-            $prevNet = @{ rx = $rxNow; tx = $txNow; time = $now }
+            $script:cs_prevNet = @{ rx = $rxNow; tx = $txNow; time = $now }
 
-            # 连接数
             $conn = Get-TcpUdpConnections
             $processCount = Get-ProcessCount
-
-            # GPU
             $gpu = Get-GpuInfo
-
-            # 系统信息
             $bootTime = Get-BootTime
             $loadAvg = Get-LoadAvg -CpuPercent $cpuPercent
-            if ([Environment]::Is64BitOperatingSystem) {
-                $arch = "x86_64"
-            } else {
-                $arch = "x86"
-            }
+            $arch = if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }
             $osName = (Get-CimInstance Win32_OperatingSystem).Caption
 
             # 构建指标
@@ -931,45 +957,45 @@ function Invoke-CollectLoop {
                 processes = $processCount.ToString()
                 tcp_conn = $conn.tcp.ToString()
                 udp_conn = $conn.udp.ToString()
-                ip_v4 = $ipV4
-                ip_v6 = $ipV6
-                ping_ct = $pingCt
-                ping_cu = $pingCu
-                ping_cm = $pingCm
-                ping_bd = $pingBd
-                loss_ct = $lossCt
-                loss_cu = $lossCu
-                loss_cm = $lossCm
-                loss_bd = $lossBd
+                ip_v4 = $script:cs_ipV4
+                ip_v6 = $script:cs_ipV6
+                ping_ct = $script:cs_pingCt
+                ping_cu = $script:cs_pingCu
+                ping_cm = $script:cs_pingCm
+                ping_bd = $script:cs_pingBd
+                loss_ct = $script:cs_lossCt
+                loss_cu = $script:cs_lossCu
+                loss_cm = $script:cs_lossCm
+                loss_bd = $script:cs_lossBd
             }
 
-            # 判断是否上报
-            $shouldReport = ($lastReportTime -eq 0) -or ($now - $lastReportTime -ge $reportInterval)
-
+            # 上报
+            $shouldReport = ($script:cs_lastReportTime -eq 0) -or ($now - $script:cs_lastReportTime -ge $rInterval)
             if ($shouldReport) {
                 $payload = @{
-                    id = $serverId
-                    secret = $secret
+                    id = $srvId
+                    secret = $sec
                     metrics = $metrics
                     collect_interval = 0
-                    report_interval = $reportInterval
+                    report_interval = $rInterval
                 }
-
                 $json = $payload | ConvertTo-Json -Depth 10 -Compress
                 try {
-                    $null = Invoke-RestMethod -Uri $workerUrl -Method Post -Body $json -ContentType "application/json; charset=utf-8" -TimeoutSec 4 -ErrorAction Stop
+                    $null = Invoke-RestMethod -Uri $wUrl -Method Post -Body $json -ContentType "application/json; charset=utf-8" -TimeoutSec 4 -ErrorAction Stop
                 } catch {
                     Write-Log "上报失败: $_" "WARN"
                 }
-                $lastReportTime = $now
+                $script:cs_lastReportTime = $now
             }
         } catch {
-            Write-Log "主循环异常: $_" "ERROR"
+            Write-Log "采集异常: $_" "ERROR"
         }
+    })
 
-        # 每 60 秒循环一次
-        Start-Sleep -Seconds $reportInterval
-    }
+    $timer.Start()
+
+    # 启动 WinForms 消息泵 — 这是托盘菜单能响应的关键
+    [System.Windows.Forms.Application]::Run()
 }
 
 # ============================================================
@@ -1076,7 +1102,7 @@ function Install-Service {
     } else {
         $scriptPath = Join-Path (Get-Location).Path "cf-server-monitor.ps1"
     }
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`" run"
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File `"$scriptPath`" run -STA"
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
@@ -1127,7 +1153,7 @@ function Install-Service {
 
     # 启动探针，传递必要的参数
     Write-Host "正在启动探针..." -ForegroundColor Yellow
-    $runArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" run -Id `"$($config.server_id)`" -Secret `"$($config.secret)`" -Url `"$($config.worker_url)`""
+    $runArgs = "-NoProfile -ExecutionPolicy Bypass -STA -File `"$scriptPath`" run -STA -Id `"$($config.server_id)`" -Secret `"$($config.secret)`" -Url `"$($config.worker_url)`""
     Write-Host "启动命令: powershell.exe $runArgs" -ForegroundColor Cyan
     Start-Process powershell.exe -ArgumentList $runArgs -WindowStyle Hidden
     Start-Sleep -Seconds 2  # 等待进程启动
