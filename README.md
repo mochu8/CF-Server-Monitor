@@ -1,22 +1,20 @@
 # [CF-Server-Monitor](https://github.com/huilang-me/CF-Server-Monitor)
 
-一个基于 Cloudflare Workers + D1 + Durable Objects 的多服务器监控探针系统，支持实时监控、历史数据查看、延迟追踪、地图展示等功能。兼容主流Linux系统，Alpine Linux，OpenWrt，Windows系统。**演示地址**：<https://demo.huilang.me/>
+一个基于 Cloudflare Workers + D1 + Durable Objects 的多服务器监控探针系统，支持实时监控、历史数据查看、延迟追踪、地图展示等功能。兼容主流Linux系统，Alpine Linux，OpenWrt，Windows系统。
 
-**当前版本：V2.7.9 Beta**
+**演示地址**：<https://demo.huilang.me/>
 
-> [!IMPORTANT]
-> **🚨 紧急安全/性能更新 (v2.7.8)**
-> 
-> 本次版本修复了 **月度任务导致数据表索引丢失** 的严重 Bug。该问题影响 **v2.7.0 ~ v2.7.7** 所有版本。
-> 
-> ⚠️ **潜在影响**：此 Bug 会严重增加 D1 读行消耗，**可能导致免费额度超限，造成服务不可用**。
-> 
-> **👉 请所有用户务必立即升级！**
+**当前版本：V2.7.9**
+
+> [!NOTE]
+> 升级到 V2.7.9 后请重新安装一次探针，之后在后台修改服务器参数会自动下发，无需每次重新安装探针，最长约 240 秒生效。
+>
+>不升级将无法使用服务器参数下发功能。
 
 <details>
 <summary>更新记录</summary>
 
-- V2.7.9 Beta 修改数据库结构，减少一半D1写入消耗，理论上支持60+服务器监控，其他bug修复
+- V2.7.9 修改数据库结构，减少一半D1写入消耗，理论上支持60+服务器监控，在保证安全的基础上，增加服务器参数下发功能。
 - V2.7.8 修复月度任务导致数据表索引丢失的严重 Bug
 - V2.7.7 添加GitHub Page部署支持，添加飞书，Bark通知支持
 - V2.7.6 添加多站点支持包括验证码登录等，添加Windows PowerShell无依赖安装脚本，一些安全优化
@@ -203,7 +201,7 @@ git push origin main
 部署成功后，访问管理后台：
 
 ```
-https://你的项目名.你的子域.workers.dev/#admin
+https://你的项目名.你的子域.workers.dev/#/admin
 ```
 
 - 用户名：默认admin，如果设置了环境变量 `API_USER_NAME`，则使用该值
@@ -361,6 +359,9 @@ curl -sL https://你的项目.你的子域.workers.dev/install-alpine.sh | sh -s
 # OpenWrt
 curl -sL https://你的项目.你的子域.workers.dev/install-openwrt.sh | sh -s install
 ```
+
+> **V2.7.9 说明**：升级到 V2.7.9 后，请重新安装一次探针以启用参数下发能力。之后在后台修改服务器参数会自动下发到探针，无需每次重新安装；受上报间隔和缓存影响，最长约 240 秒才能看到效果。
+
 为了安全，没有提供自动升级功能，如有需要自行将升级脚本加入服务器定时任务。
 
 比如 crontab -e 中添加以下内容，每天凌晨 0 点执行升级：
@@ -517,6 +518,23 @@ Windows 系统（Python 版）
 - 国内四线路延迟与丢包率追踪
 
 > **注意**：查看1小时以上的历史数据需要登录管理员账户。
+
+### iOS Scriptable 小组件
+
+项目提供了 iOS Scriptable 小组件脚本：[scripts/ios-scriptable-widget.js](scripts/ios-scriptable-widget.js)。
+
+使用方式：
+
+1. 在 iPhone 安装 [Scriptable](https://scriptable.app/)。
+2. 将 [scripts/ios-scriptable-widget.js](https://github.com/huilang-me/CF-Server-Monitor/raw/refs/heads/main/scripts/ios-scriptable-widget.js) 内容复制到 Scriptable 新脚本中。
+3. 修改脚本顶部的 `CONFIG.baseURL` 为你的站点地址，例如 `https://status.example.com`。
+4. 添加 Scriptable 小组件，选择该脚本。
+5. 在小组件的 **Parameter** 中填写服务器 ID，例如 `955bd53e-531f-4dc8-8705-dc204000fa98`，也可以写成 `id:955bd53e-531f-4dc8-8705-dc204000fa98`。
+
+说明：
+- 如需在桌面上下滑动切换服务器，需要添加多个同尺寸 Scriptable 小组件，每个小组件填写不同的服务器 ID，然后在 iOS 桌面将它们叠成小组件堆叠。
+- 小组件会显示服务器在线状态、CPU/RAM/磁盘/流量、实时上下行速率和更新时间。
+- 脚本设置了 60 秒后刷新，但 iOS 会根据系统策略决定实际刷新时间。
 
 ### 主题切换
 
@@ -828,5 +846,4 @@ MIT License
 - [Vite](https://vitejs.dev/)
 - [Chart.js](https://www.chartjs.org/)
 - [Leaflet](https://leafletjs.com/)
-- 感谢 [LINUX DO](https://linux.do/) [NodeSeek](https://www.nodeseek.com/post-763025-1) 社区的支持与推广
-
+- 感谢 [NodeSeek](https://www.nodeseek.com/post-763025-1)  [LINUX DO](https://linux.do/) 社区的支持与推广

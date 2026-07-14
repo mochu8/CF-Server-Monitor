@@ -151,9 +151,10 @@
                   <th class="col-width-30"><input type="checkbox" id="select-all" @change="handleSelectAll" class="checkbox-accent-green"></th>
                   <th>{{ trans.hostname.toUpperCase() }}</th>
                   <th>{{ trans.group.toUpperCase() }}</th>
+                  <th>{{ trans.tags.toUpperCase() }}</th>
+                  <th>{{ trans.note.toUpperCase() }}</th>
                   <th>{{ trans.price.toUpperCase() }}</th>
                   <th>{{ trans.expirationDate.toUpperCase() }}</th>
-                  <th>{{ trans.bandwidth.toUpperCase() }}</th>
                   <th>{{ trans.traffic.toUpperCase() }}</th>
                   <th>{{ trans.status.toUpperCase() }}</th>
                   <th>{{ trans.actions.toUpperCase() }}</th>
@@ -161,7 +162,7 @@
               </thead>
               <tbody>
                 <tr v-if="servers.length === 0">
-                  <td colspan="10" class="empty-state"><span class="empty-icon">📦</span> {{ trans.noServers }}</td>
+                  <td colspan="11" class="empty-state"><span class="empty-icon">📦</span> {{ trans.noServers }}</td>
                 </tr>
                 <tr 
                   v-for="server in servers" 
@@ -181,9 +182,21 @@
                     </div>
                   </td>
                   <td><span class="group-tag">{{ server.server_group || trans.default }}</span></td>
+                  <td>
+                    <div v-if="splitTags(server.tags).length" class="tag-list admin-tag-list">
+                      <span v-for="(tag, index) in splitTags(server.tags)" :key="tag" :class="['badge', 'badge-tag', tagColorClass(index)]">{{ tag }}</span>
+                    </div>
+                    <span v-else>-</span>
+                  </td>
+                  <td>
+                    <span
+                      class="note-text"
+                      :class="{ 'note-copied': copiedNoteServerId === server.id }"
+                      @dblclick.stop="copyServerNote(server)"
+                    >{{ server.note || '-' }}</span>
+                  </td>
                   <td><span class="price-tag">{{ server.price || '-' }}</span></td>
                   <td><span class="date-text">{{ server.expire_date || '-' }}</span></td>
-                  <td><span class="spec-text">{{ server.bandwidth || '-' }}</span></td>
                   <td><span class="spec-text">{{ server.traffic_limit ? formatBytes(server.traffic_limit * 1024 * 1024 * 1024) : '-' }}</span></td>
                   <td>
                     <span :style="{ color: getStatusColor(server) }" class="font-bold">{{ getStatusText(server) }}</span>
@@ -242,95 +255,88 @@
               </div>
             </div>
 
-            <div>
-              <div class="settings-section mb-5">
-                <div class="section-title"><span>▸</span> {{ trans.displayOptions }}</div>
+            <div class="settings-section">
+              <div class="section-title"><span>▸</span> {{ trans.displayOptions }}</div>
 
-                <div class="form-row">
-                  <div class="form-group flex-1 checkbox-item">
-                    <input type="checkbox" id="cfg_is_public" v-model="settings.is_public">
-                    <label><b>{{ trans.publicAccess }}</b></label>
-                  </div>
-
-                  <div class="form-group flex-1 checkbox-item">
-                    <input type="checkbox" id="cfg_show_price" v-model="settings.show_price">
-                    <label>{{ trans.showPrice }}</label>
-                  </div>
-
-                  <div class="form-group flex-1 checkbox-item">
-                    <input type="checkbox" id="cfg_show_expire" v-model="settings.show_expire">
-                    <label>{{ trans.showExpire }}</label>
-                  </div>
+              <div class="form-row">
+                <div class="form-group flex-1 checkbox-item">
+                  <input type="checkbox" id="cfg_is_public" v-model="settings.is_public">
+                  <label><b>{{ trans.publicAccess }}</b></label>
                 </div>
 
-
-                <div class="form-row">
-                  <div class="form-group flex-1 checkbox-item">
-                    <input type="checkbox" id="cfg_show_bw" v-model="settings.show_bw">
-                    <label>{{ trans.showBw }}</label>
-                  </div>
-
-                  <div class="form-group flex-1 checkbox-item">
-                    <input type="checkbox" id="cfg_show_tf" v-model="settings.show_tf">
-                    <label>{{ trans.showTf }}</label>
-                  </div>
-
-                  <div class="form-group flex-1 checkbox-item">
-                    <input type="checkbox" id="cfg_show_time" v-model="settings.show_time">
-                    <label>{{ trans.showTime }}</label>
-                  </div>
+                <div class="form-group flex-1 checkbox-item">
+                  <input type="checkbox" id="cfg_show_price" v-model="settings.show_price">
+                  <label>{{ trans.showPrice }}</label>
                 </div>
 
-                <div class="form-group checkbox-item">
-                  <input type="checkbox" id="cfg_show_long_history" v-model="settings.show_long_history">
-                  <label>{{ trans.showLongHistory }} <span class="text-muted text-sm">{{ trans.showLongHistoryTip }}</span></label>
+                <div class="form-group flex-1 checkbox-item">
+                  <input type="checkbox" id="cfg_show_expire" v-model="settings.show_expire">
+                  <label>{{ trans.showExpire }}</label>
                 </div>
               </div>
 
-              <div class="settings-section">
-                <div class="section-title"><span>▸</span> {{ trans.notifications }}</div>
-                <div class="form-row">
-                  <div class="form-group flex-1">
-                    <label class="form-label">{{ trans.offlineAlert }}</label>
-                    <select v-model="settings.tg_notify" class="form-select">
-                      <option value="false">[OFF] {{ trans.disabled }}</option>
-                      <option value="true">[ON] {{ trans.notifyOffline }}</option>
-                    </select>
-                  </div>
 
-                  <div class="form-group flex-1">
-                    <label class="form-label">{{ trans.expireReminder }}</label>
-                    <select v-model="settings.expire_reminder" class="form-select">
-                      <option value="false">[OFF] {{ trans.disabled }}</option>
-                      <option value="true">[ON] {{ trans.notifyExpire }}</option>
-                    </select>
+              <div class="form-row">
+                <div class="form-group flex-1 checkbox-item">
+                  <input type="checkbox" id="cfg_show_tf" v-model="settings.show_tf">
+                  <label>{{ trans.showTf }}</label>
+                </div>
+
+                <div class="form-group flex-1 checkbox-item">
+                  <input type="checkbox" id="cfg_show_time" v-model="settings.show_time">
+                  <label>{{ trans.showTime }}</label>
+                </div>
+              </div>
+
+              <div class="form-group checkbox-item">
+                <input type="checkbox" id="cfg_show_long_history" v-model="settings.show_long_history">
+                <label>{{ trans.showLongHistory }} <span class="text-muted text-sm">{{ trans.showLongHistoryTip }}</span></label>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="section-title"><span>▸</span> {{ trans.notifications }}</div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label">{{ trans.offlineAlert }}</label>
+                  <select v-model="settings.tg_notify" class="form-select">
+                    <option value="false">[OFF] {{ trans.disabled }}</option>
+                    <option value="true">[ON] {{ trans.notifyOffline }}</option>
+                  </select>
+                </div>
+
+                <div class="form-group flex-1">
+                  <label class="form-label">{{ trans.expireReminder }}</label>
+                  <select v-model="settings.expire_reminder" class="form-select">
+                    <option value="false">[OFF] {{ trans.disabled }}</option>
+                    <option value="true">[ON] {{ trans.notifyExpire }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label">{{ trans.telegramToken }}</label>
+                  <div class="password-input-wrapper">
+                    <input type="text" name="tg_bot_token" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" v-model="settings.tg_bot_token" :class="['form-input', { 'secret-input-masked': !passwordVisible.tgBotToken }]" placeholder="Bot Token or Webhook URL">
+                    <button type="button" class="password-toggle" @click="togglePassword('tgBotToken')">
+                      {{ passwordVisible.tgBotToken ? '🙈' : '👁️' }}
+                    </button>
                   </div>
                 </div>
-                <div class="form-row">
-                  <div class="form-group flex-1">
-                    <label class="form-label">{{ trans.telegramToken }}</label>
-                    <div class="password-input-wrapper">
-                      <input :type="passwordVisible.tgBotToken ? 'text' : 'password'" name="tg_bot_token" v-model="settings.tg_bot_token" class="form-input" placeholder="Bot Token or Webhook URL">
-                      <button type="button" class="password-toggle" @click="togglePassword('tgBotToken')">
-                        {{ passwordVisible.tgBotToken ? '🙈' : '👁️' }}
-                      </button>
-                    </div>
-                  </div>
 
-                  <div class="form-group flex-1">
-                    <label class="form-label">{{ trans.chatId }}</label>
-                    <div class="password-input-wrapper">
-                      <input :type="passwordVisible.tgChatId ? 'text' : 'password'" name="tg_chat_id" autocomplete="off" v-model="settings.tg_chat_id" class="form-input" placeholder="Optional Chat ID">
-                      <button type="button" class="password-toggle" @click="togglePassword('tgChatId')">
-                        {{ passwordVisible.tgChatId ? '🙈' : '👁️' }}
-                      </button>
-                    </div>
+                <div class="form-group flex-1">
+                  <label class="form-label">{{ trans.chatId }}</label>
+                  <div class="password-input-wrapper">
+                    <input type="text" name="tg_chat_id" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" v-model="settings.tg_chat_id" :class="['form-input', { 'secret-input-masked': !passwordVisible.tgChatId }]" placeholder="Optional Chat ID">
+                    <button type="button" class="password-toggle" @click="togglePassword('tgChatId')">
+                      {{ passwordVisible.tgChatId ? '🙈' : '👁️' }}
+                    </button>
                   </div>
                 </div>
-                <div class="form-row">
-                  <div class="form-group flex-1">
-                    <button @click="sendTestNotification" class="btn btn-primary" :disabled="testNotificationLoading">{{ testNotificationLoading ? '⏳' : '📨' }} {{ trans.sendTestNotification }}</button>
-                  </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <button type="button" @click="sendTestNotification" class="btn btn-primary" :disabled="testNotificationLoading">{{ testNotificationLoading ? '⏳' : '📨' }} {{ trans.sendTestNotification }}</button>
                 </div>
               </div>
             </div>
@@ -366,7 +372,7 @@
                 <div class="form-group flex-1">
                   <label class="form-label">{{ trans.turnstileSecretKey }}</label>
                   <div class="password-input-wrapper">
-                    <input :type="passwordVisible.turnstileSecret ? 'text' : 'password'" name="turnstile_secret_key" autocomplete="off" v-model="settings.turnstile_secret_key" class="form-input" :placeholder="trans.turnstileSecretKeyPlaceholder">
+                    <input type="text" name="turnstile_secret_key" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" v-model="settings.turnstile_secret_key" :class="['form-input', { 'secret-input-masked': !passwordVisible.turnstileSecret }]" :placeholder="trans.turnstileSecretKeyPlaceholder">
                     <button type="button" class="password-toggle" @click="togglePassword('turnstileSecret')">
                       {{ passwordVisible.turnstileSecret ? '🙈' : '👁️' }}
                     </button>
@@ -382,7 +388,7 @@
               <div class="form-group mt-4">
                 <label class="form-label">{{ trans.jwtSecret }}</label>
                 <div class="password-input-wrapper">
-                  <input :type="passwordVisible.jwtSecret ? 'text' : 'password'" name="jwt_secret" autocomplete="off" v-model="settings.jwt_secret" class="form-input" :placeholder="trans.jwtSecretPlaceholder">
+                  <input type="text" name="jwt_secret" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" v-model="settings.jwt_secret" :class="['form-input', { 'secret-input-masked': !passwordVisible.jwtSecret }]" :placeholder="trans.jwtSecretPlaceholder">
                   <button type="button" class="password-toggle" @click="togglePassword('jwtSecret')">
                     {{ passwordVisible.jwtSecret ? '🙈' : '👁️' }}
                   </button>
@@ -407,7 +413,7 @@
                 <div class="form-group flex-1">
                   <label class="form-label">Cloudflare API Token</label>
                   <div class="password-input-wrapper">
-                    <input :type="passwordVisible.cloudflareToken ? 'text' : 'password'" name="cloudflare_token" autocomplete="off" v-model="settings.cloudflare_token" class="form-input" :placeholder="trans.cloudflareTokenPlaceholder">
+                    <input type="text" name="cloudflare_token" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" v-model="settings.cloudflare_token" :class="['form-input', { 'secret-input-masked': !passwordVisible.cloudflareToken }]" :placeholder="trans.cloudflareTokenPlaceholder">
                     <button type="button" class="password-toggle" @click="togglePassword('cloudflareToken')">
                       {{ passwordVisible.cloudflareToken ? '🙈' : '👁️' }}
                     </button>
@@ -417,7 +423,7 @@
 
               <div class="form-row">
                 <div class="form-group  flex-1">
-                  <button @click="queryD1Usage" class="btn btn-primary btn-lg" :disabled="d1UsageLoading">{{ d1UsageLoading ? '⏳' : '🔍' }} {{ trans.queryD1Quota }}</button>
+                  <button type="button" @click="queryD1Usage" class="btn btn-primary btn-lg" :disabled="d1UsageLoading">{{ d1UsageLoading ? '⏳' : '🔍' }} {{ trans.queryD1Quota }}</button>
                 </div>
                 <div class="form-group  flex-1">
                   <p class="text-muted text-sm mt-2">
@@ -434,14 +440,40 @@
 
               <div class="form-group">
                 <label class="form-label">{{ trans.username }}</label>
-                <input type="text" name="admin_username" autocomplete="username" v-model="settings.username" class="form-input" :placeholder="trans.usernamePlaceholder">
+                <input
+                  type="text"
+                  name="settings_admin_user"
+                  autocomplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-bwignore="true"
+                  data-form-type="other"
+                  v-model="settings.username"
+                  class="form-input"
+                  :placeholder="trans.usernamePlaceholder"
+                >
               </div>
 
-              <div class="form-row">
+              <button type="button" class="btn btn-sm mb-3" @click="toggleAdminPasswordChange">
+                {{ changeAdminPassword ? trans.cancelPasswordChange : trans.changePassword }}
+              </button>
+
+              <div v-if="changeAdminPassword" class="form-row">
                 <div class="form-group flex-1">
                   <label class="form-label">{{ trans.password }}</label>
                   <div class="password-input-wrapper">
-                    <input :type="passwordVisible.password ? 'text' : 'password'" name="admin_password" autocomplete="new-password" v-model="settings.password" class="form-input" placeholder="••••••••">
+                    <input
+                      :type="passwordVisible.password ? 'text' : 'password'"
+                      name="settings_admin_passphrase"
+                      autocomplete="off"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      data-bwignore="true"
+                      data-form-type="other"
+                      v-model="settings.password"
+                      class="form-input"
+                      placeholder="••••••••"
+                    >
                     <button type="button" class="password-toggle" @click="togglePassword('password')">
                       {{ passwordVisible.password ? '🙈' : '👁️' }}
                     </button>
@@ -451,7 +483,18 @@
                 <div class="form-group flex-1">
                   <label class="form-label">{{ trans.confirmPassword }}</label>
                   <div class="password-input-wrapper">
-                    <input :type="passwordVisible.confirmPassword ? 'text' : 'password'" name="admin_confirm_password" autocomplete="new-password" v-model="settings.confirm_password" class="form-input" placeholder="••••••••">
+                    <input
+                      :type="passwordVisible.confirmPassword ? 'text' : 'password'"
+                      name="settings_admin_passphrase_confirm"
+                      autocomplete="off"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      data-bwignore="true"
+                      data-form-type="other"
+                      v-model="settings.confirm_password"
+                      class="form-input"
+                      placeholder="••••••••"
+                    >
                     <button type="button" class="password-toggle" @click="togglePassword('confirmPassword')">
                       {{ passwordVisible.confirmPassword ? '🙈' : '👁️' }}
                     </button>
@@ -537,6 +580,16 @@
               <label class="form-label">{{ trans.groupName }}</label>
               <input type="text" name="edit_server_group" autocomplete="off" v-model="editForm.server_group" class="form-input" placeholder="e.g. US VPS">
             </div>
+
+            <div class="form-group flex-1">
+              <label class="form-label">{{ trans.tags }}</label>
+              <input type="text" name="edit_tags" autocomplete="off" v-model="editForm.tags" class="form-input" :placeholder="trans.tagsPlaceholder">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">{{ trans.note }}</label>
+            <textarea name="edit_note" autocomplete="off" v-model="editForm.note" class="form-textarea" rows="2" :placeholder="trans.notePlaceholder"></textarea>
           </div>
 
           <div class="form-row">
@@ -548,11 +601,6 @@
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.expirationDate }}</label>
               <input type="date" name="edit_expire_date" autocomplete="off" v-model="editForm.expire_date" class="form-input">
-            </div>
-
-            <div class="form-group flex-1">
-              <label class="form-label">{{ trans.bandwidth }}</label>
-              <input type="text" name="edit_bandwidth" autocomplete="off" v-model="editForm.bandwidth" class="form-input" placeholder="e.g. 1Gbps">
             </div>
           </div>
 
@@ -607,9 +655,45 @@
               </select>
             </div>
           </div>
+
           <div class="text-muted text-sm mb-3">
             <span class="warning-icon">[i]</span> {{ trans.collectIntervalHint }}<br>
             <span class="warning-icon">[i]</span> {{ trans.trafficResetDayTip }}
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">{{ trans.customCt }} <span class="text-xs text-muted">({{ trans.serverLevel }})</span></label>
+              <input type="text" name="edit_custom_ct" autocomplete="off" v-model="editForm.custom_ct" class="form-input" :placeholder="settings.custom_ct || 'gd-ct-dualstack.ip.zstaticcdn.com'">
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">{{ trans.customCu }} <span class="text-xs text-muted">({{ trans.serverLevel }})</span></label>
+              <input type="text" name="edit_custom_cu" autocomplete="off" v-model="editForm.custom_cu" class="form-input" :placeholder="settings.custom_cu || 'gd-cu-dualstack.ip.zstaticcdn.com'">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">{{ trans.customCm }} <span class="text-xs text-muted">({{ trans.serverLevel }})</span></label>
+              <input type="text" name="edit_custom_cm" autocomplete="off" v-model="editForm.custom_cm" class="form-input" :placeholder="settings.custom_cm || 'gd-cm-dualstack.ip.zstaticcdn.com'">
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">{{ trans.customBd }} <span class="text-xs text-muted">({{ trans.serverLevel }})</span></label>
+              <input type="text" name="edit_custom_bd" autocomplete="off" v-model="editForm.custom_bd" class="form-input" :placeholder="settings.custom_bd || 'lf3-ips.zstaticcdn.com'">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">{{ trans.rxCorrection }} (GB)</label>
+              <input type="number" name="edit_rx_correction" autocomplete="off" v-model="editForm.rx_correction" class="form-input" placeholder="0" min="0" step="0.1">
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">{{ trans.txCorrection }} (GB)</label>
+              <input type="number" name="edit_tx_correction" autocomplete="off" v-model="editForm.tx_correction" class="form-input" placeholder="0" min="0" step="0.1">
+            </div>
+          </div>
+          <div class="text-muted text-sm mb-3">
+            <span class="warning-icon">[i]</span> {{ trans.correctionHint }}
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -709,22 +793,22 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.customCt }}</label>
-              <input type="text" name="custom_ct" autocomplete="off" v-model="customCt" class="form-input" placeholder="gd-ct-dualstack.ip.zstaticcdn.com">
+              <input type="text" name="custom_ct" autocomplete="off" v-model="customCt" class="form-input" placeholder="gd-ct-dualstack.ip.zstaticcdn.com" readonly>
             </div>
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.customCu }}</label>
-              <input type="text" name="custom_cu" autocomplete="off" v-model="customCu" class="form-input" placeholder="gd-cu-dualstack.ip.zstaticcdn.com">
+              <input type="text" name="custom_cu" autocomplete="off" v-model="customCu" class="form-input" placeholder="gd-cu-dualstack.ip.zstaticcdn.com" readonly>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.customCm }}</label>
-              <input type="text" name="custom_cm" autocomplete="off" v-model="customCm" class="form-input" placeholder="gd-cm-dualstack.ip.zstaticcdn.com">
+              <input type="text" name="custom_cm" autocomplete="off" v-model="customCm" class="form-input" placeholder="gd-cm-dualstack.ip.zstaticcdn.com" readonly>
             </div>
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.customBd }}</label>
-              <input type="text" name="custom_bd" autocomplete="off" v-model="customBd" class="form-input" placeholder="lf3-ips.zstaticcdn.com">
+              <input type="text" name="custom_bd" autocomplete="off" v-model="customBd" class="form-input" placeholder="lf3-ips.zstaticcdn.com" readonly>
             </div>
           </div>
 
@@ -759,11 +843,11 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.rxCorrection }} (GB)</label>
-              <input type="number" name="rx_correction" autocomplete="off" v-model="rxCorrection" class="form-input" placeholder="0" min="0" step="1">
+              <input type="number" name="rx_correction" autocomplete="off" v-model="rxCorrection" class="form-input" placeholder="0" min="0" step="1" readonly>
             </div>
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.txCorrection }} (GB)</label>
-              <input type="number" name="tx_correction" autocomplete="off" v-model="txCorrection" class="form-input" placeholder="0" min="0" step="1">
+              <input type="number" name="tx_correction" autocomplete="off" v-model="txCorrection" class="form-input" placeholder="0" min="0" step="1" readonly>
             </div>
           </div>
 
@@ -842,6 +926,9 @@
           </div>
 
           <div v-if="d1UsageResult.success" class="mb-4">
+            <div class="warning-box mb-4">
+              {{ getMessage(d1UsageResult.message) || trans.d1UsageQueried }}
+            </div>
             <div class="quota-section">
               <div class="quota-section-title">{{ trans.todayUsage }}</div>
               <div class="quota-progress-list">
@@ -1074,7 +1161,6 @@ const settings = ref({
   is_public: false,
   show_price: true,
   show_expire: true,
-  show_bw: true,
   show_tf: true,
   show_time: true,
   show_long_history: false,
@@ -1097,10 +1183,29 @@ const settings = ref({
   custom_bd: ''
 })
 const apiSecret = ref('')
+const changeAdminPassword = ref(false)
+
+const clearAdminPasswordInputs = () => {
+  settings.value.password = ''
+  settings.value.confirm_password = ''
+}
+
+const toggleAdminPasswordChange = () => {
+  changeAdminPassword.value = !changeAdminPassword.value
+  if (!changeAdminPassword.value) {
+    clearAdminPasswordInputs()
+  }
+}
 
 const { visibility: passwordVisible, toggle: togglePassword } = usePasswordVisibility([
   'login', 'tgBotToken', 'tgChatId', 'turnstileSecret', 'cloudflareToken', 'jwtSecret', 'password', 'confirmPassword'
 ])
+
+const splitTags = (value) => String(value || '')
+  .split(',')
+  .map(tag => tag.trim())
+  .filter(Boolean)
+const tagColorClass = (index) => `tag-color-${index % 6}`
 
 const showEditModal = ref(false)
 const editResetDayRef = ref(null)
@@ -1108,15 +1213,22 @@ const editForm = ref({
   id: '',
   name: '',
   server_group: '',
+  tags: '',
+  note: '',
   price: '',
   expire_date: '',
-  bandwidth: '',
   traffic_limit: '',
   traffic_calc_type: 'total',
   reset_day: 1,
   collect_interval: 0,
   report_interval: 60,
-  ping_mode: 'http',
+  ping_mode: 'tcp',
+  custom_ct: '',
+  custom_cu: '',
+  custom_cm: '',
+  custom_bd: '',
+  rx_correction: '',
+  tx_correction: '',
   is_hidden: false,
   offline_notify_disabled: false
 })
@@ -1125,6 +1237,7 @@ const showDeleteModal = ref(false)
 const deleteServerId = ref('')
 
 const copiedServerId = ref(null)
+const copiedNoteServerId = ref(null)
 const deleteTargetOs = ref('linux')
 const uninstallCopied = ref(false)
 const saving = ref(false)
@@ -1148,7 +1261,7 @@ const currentServerName = ref('')
 const targetOs = ref('linux')
 const collectInterval = ref(0)
 const reportInterval = ref(60)
-const pingMode = ref('http')
+const pingMode = ref('tcp')
 const customCt = ref('')
 const customCu = ref('')
 const customCm = ref('')
@@ -1158,6 +1271,44 @@ const rxCorrection = ref('')
 const txCorrection = ref('')
 const trafficCalcType = ref('total')
 const copiedCmd = ref(false)
+
+const copyTextToClipboard = async (text) => {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch (e) {
+      // Fall back to the textarea path below.
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand('copy')
+  document.body.removeChild(textarea)
+}
+
+const copyServerNote = async (server) => {
+  const note = String(server?.note || '')
+  if (!note.trim()) return
+
+  try {
+    await copyTextToClipboard(note)
+    copiedNoteServerId.value = server.id
+    setTimeout(() => {
+      if (copiedNoteServerId.value === server.id) {
+        copiedNoteServerId.value = null
+      }
+    }, 1500)
+  } catch (e) {
+    console.error('[ERROR] Copy note failed:', e)
+  }
+}
 
 const handleLogin = async () => {
     loginError.value = ''
@@ -1394,7 +1545,6 @@ const loadSettings = async () => {
         is_public: settingsData.is_public === 'true',
         show_price: settingsData.show_price === 'true',
         show_expire: settingsData.show_expire === 'true',
-        show_bw: settingsData.show_bw === 'true',
         show_tf: settingsData.show_tf === 'true',
         show_time: settingsData.show_time === 'true',
         show_long_history: settingsData.show_long_history === 'true',
@@ -1411,11 +1561,13 @@ const loadSettings = async () => {
         jwt_secret: '',
         username: settingsData.username || '',
         password: '',  // 不显示加密后的密码
+        confirm_password: '',
         custom_ct: settingsData.custom_ct || '',
         custom_cu: settingsData.custom_cu || '',
         custom_cm: settingsData.custom_cm || '',
         custom_bd: settingsData.custom_bd || ''
       }
+      changeAdminPassword.value = false
       apiSecret.value = data.api_secret || ''
     }
   } catch (e) {
@@ -1442,8 +1594,13 @@ const saveSettings = async () => {
       return
     }
 
-    // 只有当用户输入了新密码时才验证密码确认
-    if (settings.value.password && settings.value.password.length > 0) {
+    const shouldChangePassword = changeAdminPassword.value && (
+      settings.value.password.length > 0 ||
+      settings.value.confirm_password.length > 0
+    )
+
+    // 只有当用户显式输入了新密码时才验证密码确认
+    if (shouldChangePassword) {
       if (settings.value.password !== settings.value.confirm_password) {
         validationError.value = trans.value.passwordMismatch
         return
@@ -1483,7 +1640,6 @@ const saveSettings = async () => {
         is_public: settings.value.is_public ? 'true' : 'false',
         show_price: settings.value.show_price ? 'true' : 'false',
         show_expire: settings.value.show_expire ? 'true' : 'false',
-        show_bw: settings.value.show_bw ? 'true' : 'false',
         show_tf: settings.value.show_tf ? 'true' : 'false',
         show_time: settings.value.show_time ? 'true' : 'false',
         show_long_history: settings.value.show_long_history ? 'true' : 'false',
@@ -1506,7 +1662,7 @@ const saveSettings = async () => {
     }
 
     // 只有当用户输入了新密码时才保存密码
-    if (settings.value.password && settings.value.password.length > 0) {
+    if (shouldChangePassword && settings.value.password.length > 0) {
       data.settings.password = settings.value.password
     }
 
@@ -1519,8 +1675,8 @@ const saveSettings = async () => {
       const result = await adminApiForSite(data)
       if (!result.error) {
         saveResult.value = { success: true }
-        settings.value.password = ''
-        settings.value.confirm_password = ''
+        clearAdminPasswordInputs()
+        changeAdminPassword.value = false
         settings.value.jwt_secret = ''
         loadSettings()
       } else {
@@ -1598,17 +1754,19 @@ const copyCmd = (serverId) => {
   collectInterval.value = server?.collect_interval ?? 0
   reportInterval.value = server?.report_interval || 60
   pingMode.value = server?.ping_mode || 'http'
-  customCt.value = settings.value.custom_ct
-  customCu.value = settings.value.custom_cu
-  customCm.value = settings.value.custom_cm
-  customBd.value = settings.value.custom_bd
+  customCt.value = server?.custom_ct || settings.value.custom_ct
+  customCu.value = server?.custom_cu || settings.value.custom_cu
+  customCm.value = server?.custom_cm || settings.value.custom_cm
+  customBd.value = server?.custom_bd || settings.value.custom_bd
   resetDay.value = server?.reset_day ?? 1
-  rxCorrection.value = ''
-  txCorrection.value = ''
+  rxCorrection.value = server?.rx_correction ?? ''
+  txCorrection.value = server?.tx_correction ?? ''
   trafficCalcType.value = server?.traffic_calc_type || 'total'
   copiedCmd.value = false
   showCopyModal.value = true
 }
+
+const hasCorrectionValue = (value) => value !== null && value !== undefined && value !== ''
 
 const getCustomInstallCommand = () => {
   const HOST = selectedApiBase.value
@@ -1627,8 +1785,8 @@ const getCustomInstallCommand = () => {
     if (customCu.value) params.push(`-CuNode '${customCu.value}'`)
     if (customCm.value) params.push(`-CmNode '${customCm.value}'`)
     if (customBd.value) params.push(`-BdNode '${customBd.value}'`)
-    if (rxCorrection.value && rxCorrection.value !== '') params.push(`-RxCorrection ${rxCorrection.value}`)
-    if (txCorrection.value && txCorrection.value !== '') params.push(`-TxCorrection ${txCorrection.value}`)
+    if (hasCorrectionValue(rxCorrection.value)) params.push(`-RxCorrection ${rxCorrection.value}`)
+    if (hasCorrectionValue(txCorrection.value)) params.push(`-TxCorrection ${txCorrection.value}`)
     return `irm ${HOST}/cf-server-monitor.ps1 -OutFile cf-server-monitor.ps1; powershell -ExecutionPolicy Bypass -File .\\cf-server-monitor.ps1 ${params.join(' ')}`
   }
   const shell = targetOs.value === 'alpine' || targetOs.value === 'openwrt' ? 'sh' : 'bash'
@@ -1642,8 +1800,8 @@ const getCustomInstallCommand = () => {
   if (customCu.value) cmd += ` -cu=${customCu.value}`
   if (customCm.value) cmd += ` -cm=${customCm.value}`
   if (customBd.value) cmd += ` -bd=${customBd.value}`
-  if (rxCorrection.value && rxCorrection.value !== '') cmd += ` -rx_correction=${rxCorrection.value}`
-  if (txCorrection.value && txCorrection.value !== '') cmd += ` -tx_correction=${txCorrection.value}`
+  if (hasCorrectionValue(rxCorrection.value)) cmd += ` -rx_correction=${rxCorrection.value}`
+  if (hasCorrectionValue(txCorrection.value)) cmd += ` -tx_correction=${txCorrection.value}`
   return cmd
 }
 
@@ -1695,15 +1853,22 @@ const openEditModal = (server) => {
     id: server.id,
     name: server.name || '',
     server_group: server.server_group || '',
+    tags: server.tags || '',
+    note: server.note || '',
     price: server.price || '',
     expire_date: server.expire_date || '',
-    bandwidth: server.bandwidth || '',
     traffic_limit: server.traffic_limit || '',
     traffic_calc_type: server.traffic_calc_type || 'total',
     reset_day: server.reset_day ?? 1,
     collect_interval: server.collect_interval ?? 0,
     report_interval: server.report_interval || 60,
     ping_mode: server.ping_mode || 'http',
+    custom_ct: server.custom_ct || '',
+    custom_cu: server.custom_cu || '',
+    custom_cm: server.custom_cm || '',
+    custom_bd: server.custom_bd || '',
+    rx_correction: server.rx_correction ?? '',
+    tx_correction: server.tx_correction ?? '',
     is_hidden: server.is_hidden === '1',
     offline_notify_disabled: server.offline_notify_disabled === '1'
   }
@@ -1721,15 +1886,22 @@ const saveEdit = async () => {
       id: editForm.value.id,
       name: editForm.value.name,
       server_group: editForm.value.server_group,
+      tags: editForm.value.tags,
+      note: editForm.value.note,
       price: editForm.value.price,
       expire_date: editForm.value.expire_date,
-      bandwidth: editForm.value.bandwidth,
       traffic_limit: editForm.value.traffic_limit,
       traffic_calc_type: editForm.value.traffic_calc_type,
       reset_day: editForm.value.reset_day,
       collect_interval: editForm.value.collect_interval,
       report_interval: editForm.value.report_interval,
       ping_mode: editForm.value.ping_mode,
+      custom_ct: editForm.value.custom_ct,
+      custom_cu: editForm.value.custom_cu,
+      custom_cm: editForm.value.custom_cm,
+      custom_bd: editForm.value.custom_bd,
+      rx_correction: editForm.value.rx_correction,
+      tx_correction: editForm.value.tx_correction,
       is_hidden: editForm.value.is_hidden ? '1' : '0',
       offline_notify_disabled: editForm.value.offline_notify_disabled ? '1' : '0'
     }
@@ -1910,16 +2082,21 @@ const queryD1Usage = async () => {
   if (d1UsageLoading.value) return
   d1UsageLoading.value = true
   d1UsageResult.value = null
+  alertMessage.value = null
 
   try {
-    const result = await adminApiForSite({ action: 'd1_usage' })
+    const result = await adminApiForSite({
+      action: 'd1_usage',
+      cloudflare_account_id: settings.value.cloudflare_account_id,
+      cloudflare_token: settings.value.cloudflare_token
+    })
     if (!result.error) {
       d1UsageResult.value = result.data
     } else {
-      d1UsageResult.value = { success: false, error: result.error || 'Fail' }
+      alertMessage.value = getMessage(result.error) || result.error || trans.value.operationFailed
     }
   } catch (e) {
-    d1UsageResult.value = { success: false, error: e.message }
+    alertMessage.value = getMessage(e.message) || e.message || trans.value.operationFailed
   } finally {
     d1UsageLoading.value = false
   }
