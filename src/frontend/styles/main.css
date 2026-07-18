@@ -636,6 +636,7 @@ body::before {
 }
 
 .filter-tag img {
+    width: 16px;
     border-radius: 1px;
 }
 
@@ -809,6 +810,7 @@ body::before {
     align-items: center;
     margin-bottom: 12px;
     color: var(--text-primary);
+    font-size: 12px;
 }
 
 .card-meta {
@@ -2361,6 +2363,7 @@ body::before {
     vertical-align: middle;
     border-radius: 2px;
     filter: brightness(0.9);
+    width: 24px;
 }
 
 .admin-link-color {

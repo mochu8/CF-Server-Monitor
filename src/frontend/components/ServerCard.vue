@@ -3,8 +3,8 @@
     <div class="server-card-header">
       <div class="server-identity">
         <div class="status-indicator" :style="{ background: statusColor, boxShadow: '0 0 8px ' + statusColor }"></div>
-        <span v-if="regionCode !== 'xx'">
-          <img :src="'https://flagcdn.com/24x18/' + regionCode + '.png'" :alt="regionCode" style="vertical-align: middle; margin-right: 5px; border-radius: 2px; filter: brightness(0.9);">
+        <span v-if="regionCode && regionCode !== 'xx'">
+          <img class="flag-img" :src="getPublicAssetUrl('flags/' + regionCode + '.svg')" :alt="regionCode">
         </span>
         <span v-else>🏳️</span>
         <span class="server-name">{{ server.name }}</span>
@@ -94,7 +94,8 @@
 <script setup>
 import { computed } from 'vue'
 import { formatBytes, getFlagRegionCode, getTrafficUsagePercent, isServerOnline } from '../utils/api'
-import { t, currentLang, useTranslation } from '../utils/i18n'
+import { getPublicAssetUrl } from '../utils/config'
+import { useTranslation } from '../utils/i18n'
 import { PING } from '../utils/constants'
 import { normalizeTimestamp, formatDateTime } from '../utils/time.js'
 
