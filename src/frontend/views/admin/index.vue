@@ -34,7 +34,7 @@
             <span class="prompt">$</span> {{ trans.sudoStatus }}
           </div>
           <div class="header-actions">
-            <button @click="loadServers" class="btn" :disabled="adminSiteLoading">↻ {{ trans.refresh }}</button>
+            <button @click="refreshServers" class="btn" :disabled="adminSiteLoading">↻ {{ trans.refresh }}</button>
             <select
               v-if="isMultipleMode"
               v-model.number="selectedApiIndex"
@@ -103,6 +103,7 @@
           :groups="groups"
           :active-tab="activeTab"
           :selected-api-index="selectedApiIndex"
+          :latest-agent-version="latestAgentVersion"
           :copied-server-id="copiedServerId"
           :copied-note-server-id="copiedNoteServerId"
           @add-server="addServer"
@@ -417,7 +418,7 @@ import DatabasePanel from './components/DatabasePanel.vue'
 import EditServerModal from './components/EditServerModal.vue'
 import DeleteServerModal from './components/DeleteServerModal.vue'
 import CopyCommandModal from './components/CopyCommandModal.vue'
-import { adminApi, login, logout as apiLogout, upgradeDatabase, clearHistory, getApiBases } from '../../utils/api'
+import { adminApi, login, logout as apiLogout, upgradeDatabase, clearHistory, getApiBases, fetchConfig } from '../../utils/api'
 import { hasMultipleApiBases } from '../../utils/config.js'
 import { t, useTranslation } from '../../utils/i18n'
 import { PING_NODE_FIELDS, validatePingNode } from '../../utils/pingNode.js'
@@ -477,6 +478,7 @@ const servers = ref([])
 const selectedServers = ref([])
 const stats = ref({ total: '-', online: 0, offline: 0, avg_cpu: 0 })
 const groups = ref(['Default'])
+const latestAgentVersion = ref('')
 const newServerName = ref('')
 const newServerGroup = ref('')
 
@@ -681,8 +683,11 @@ const handleLogin = async () => {
     syncApiIndexQuery()
     clearTurnstile()
     turnstileVerified.value = hasSharedTurnstileVerified()
-    loadSettings()
-    loadServers()
+    await Promise.all([
+      loadSettings(),
+      loadServers(),
+      loadLatestAgentVersion()
+    ])
   } else {
     loginError.value = result.status === 403 ? 'Please complete the verification' : trans.value.errorInvalidUsername
     loginForm.value.password = ''
@@ -695,6 +700,7 @@ const handleLogin = async () => {
 const logout = async () => {
   apiLogout()
   isLoggedIn.value = false
+  latestAgentVersion.value = ''
   clearTurnstile()
   await loadTurnstileConfig()
 }
@@ -713,8 +719,11 @@ const initAdmin = async () => {
     if (savedTurnstileToken) {
       turnstileToken.value = savedTurnstileToken
     }
-    loadSettings()
-    loadServers()
+    await Promise.all([
+      loadSettings(),
+      loadServers(),
+      loadLatestAgentVersion()
+    ])
   } else {
     await loadTurnstileConfig()
   }
@@ -750,7 +759,8 @@ const switchAdminSite = async () => {
   try {
     await Promise.all([
       loadSettings(),
-      loadServers()
+      loadServers(),
+      loadLatestAgentVersion()
     ])
   } finally {
     adminSiteLoading.value = false
@@ -760,6 +770,16 @@ const switchAdminSite = async () => {
 const handleAdminApiIndexChange = async () => {
   syncApiIndexQuery()
   await switchAdminSite()
+}
+
+const loadLatestAgentVersion = async () => {
+  try {
+    const config = await fetchConfig(selectedApiIndex.value)
+    latestAgentVersion.value = config?.last_agent_version || ''
+  } catch (e) {
+    console.error('[ERROR] Load latest agent version failed:', e)
+    latestAgentVersion.value = ''
+  }
 }
 
 const loadSettings = async () => {
@@ -949,6 +969,13 @@ const loadServers = async () => {
   } catch (e) {
     console.error('[ERROR] Load servers failed:', e)
   }
+}
+
+const refreshServers = async () => {
+  await Promise.all([
+    loadServers(),
+    loadLatestAgentVersion()
+  ])
 }
 
 const addServer = async () => {

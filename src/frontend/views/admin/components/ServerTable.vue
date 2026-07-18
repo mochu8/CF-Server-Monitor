@@ -80,7 +80,12 @@
             <td><span class="price-tag">{{ server.price || '-' }}</span></td>
             <td><span class="date-text">{{ server.expire_date || '-' }}</span></td>
             <td><span class="spec-text">{{ server.traffic_limit ? formatBytes(server.traffic_limit * 1024 * 1024 * 1024) : '-' }}</span></td>
-            <td><span class="spec-text">{{ server.agent_version || '-' }}</span></td>
+            <td>
+              <span
+                class="spec-text"
+                :class="getAgentVersionClass(server.agent_version)"
+              >{{ server.agent_version || '●' }}</span>
+            </td>
             <td>
               <span :style="{ color: server.is_online ? 'var(--accent-green)' : 'var(--accent-red)' }" class="font-bold">{{ (server.is_online ? '● ' + trans.online : '● ' + trans.offline).toUpperCase() }}</span>
             </td>
@@ -104,13 +109,14 @@
 import { getFlagRegionCode, formatBytes } from '../../../utils/api'
 import { getPublicAssetUrl } from '../../../utils/config'
 
-defineProps({
+const props = defineProps({
   trans: { type: Object, required: true },
   servers: { type: Array, default: () => [] },
   selectedServers: { type: Array, default: () => [] },
   groups: { type: Array, default: () => ['Default'] },
   activeTab: { type: String, default: 'servers' },
   selectedApiIndex: { type: Number, default: 0 },
+  latestAgentVersion: { type: String, default: '' },
   copiedServerId: { type: [String, Number], default: null },
   copiedNoteServerId: { type: [String, Number], default: null }
 })
@@ -129,4 +135,10 @@ const splitTags = (value) => String(value || '')
   .map(tag => tag.trim())
   .filter(Boolean)
 const tagColorClass = (index) => `tag-color-${index % 6}`
+const normalizeVersion = (version) => String(version || '').trim()
+const getAgentVersionClass = (version) => {
+  const latest = normalizeVersion(props.latestAgentVersion)
+  if (!latest) return ''
+  return normalizeVersion(version) === latest ? 'text-green' : 'text-red'
+}
 </script>

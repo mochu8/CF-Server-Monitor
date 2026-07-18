@@ -6,7 +6,7 @@ import './styles/light.css'
 import { currentLang, translations } from './utils/i18n'
 import { http } from './utils/http'
 import { initConfig, hasMultipleApiBases } from './utils/config'
-import { VERSION } from './utils/api'
+import { LAST_AGENT_VERSION, LAST_WORKERS_VERSION, VERSION } from './utils/api'
 import {
   clearTurnstileToken,
   fetchAllTurnstileConfigs,
@@ -68,6 +68,8 @@ async function fetchConfig() {
     if (version) {
       VERSION.value = version
     }
+    LAST_WORKERS_VERSION.value = lastWorkersVersion
+    LAST_AGENT_VERSION.value = lastAgentVersion
 
     return {
       turnstile_enabled: turnstileEnabled,
@@ -243,6 +245,8 @@ async function initApp() {
         config.turnstile_api_index = sharedTurnstileSite.index
       }
       if (config.version) VERSION.value = config.version
+      LAST_WORKERS_VERSION.value = config.last_workers_version || ''
+      LAST_AGENT_VERSION.value = config.last_agent_version || ''
     } catch (_) {
       config = { turnstile_enabled: false, turnstile_login_enabled: false, turnstile_site_key: '', turnstile_api_index: 0, version: '', last_workers_version: '', last_agent_version: '', verified: false, is_public: true, authorization: false, csp_static: '', csp_api: '' }
     }
