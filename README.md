@@ -4,7 +4,7 @@
 
 **演示地址**：<https://demo.huilang.me/>
 
-**当前Workers版本：V2.7.13 Beta4; Agent版本：1.3.2**
+**当前Workers版本：V2.7.13 Beta5; Agent版本：1.3.2**
 
 > [!IMPORTANT]
 > V2.7.10 加入了 CSP 内容安全策略。默认只允许同源资源和必要的 Cloudflare/Google Fonts 资源；
@@ -96,7 +96,7 @@
 3. 点击 **Create application**
 4. 选择 Continue with GitHub（第一次使用需要连接 GitHub 账户），选择本项目
 5. Project Name填写：`cf-server-monitor`
-6. Build command 保留默认值：`npm run build`
+6. Build command 填写：`npm run build:frontend`
 7. Deploy command 保留默认值：`npx wrangler deploy`
 8. 点击 **Deploy**，成功会在底部显示`✨ Success! Build completed.`
 
@@ -321,14 +321,7 @@ irm https://你的项目.你的子域.workers.dev/cf-server-monitor.ps1 -OutFile
 
 > **V2.7.9 及以上说明**：从 V2.7.8 或更早版本升级后，请重新安装一次探针以启用参数下发能力。之后在后台修改服务器参数会自动下发到探针，无需每次重新安装；受上报间隔和缓存影响，最长约 240 秒才能看到效果。
 
-为了安全，没有提供自动升级功能，如有需要自行将升级脚本加入服务器定时任务。
-
-比如 crontab -e 中添加以下内容，每天凌晨 0 点执行升级：
-
-```bash
-# Linux
-0 0 * * * curl -sL https://你的项目.你的子域.workers.dev/install.sh | bash -s install
-```
+可以在服务器编辑配置中启用自动更新。首次启用，或修改探针上报地址/API_SECRET/开启自动更新，需要重新复制并执行该服务器的安装命令；后续自动更新会沿用本地保存的配置。
 
 </details>
 
@@ -463,8 +456,8 @@ Content Security Policy (CSP) 是一种安全层，用于检测和缓解某些�
 ### OneBot (QQ)
 
 1. 部署 OneBot 协议实现（如 go-cqhttp、Lagrange 等），获取 HTTP API 地址
-2. 将 API 地址填入 **Bot Token** 字段，格式为 `onebot:http://127.0.0.1:3000`
-3. **Chat ID** 填入目标用户 ID（如 `123456`）或群 ID（如 `group:789012`）
+2. 将 API 地址填入 **Bot Token** 字段，格式为 `onebot:http://127.0.0.1:3000/send_private_msg?access_token=xxx`，或 `onebot:http://127.0.0.1:3000/send_group_msg?access_token=xxx`
+3. **Chat ID** 填入目标用户 ID（如 `123456`）或群 ID（如 `789012`）
 
 ### 企业微信
 
@@ -801,6 +794,11 @@ Cloudflare D1 免费版提供 5GB 存储和 5M 读取行/日、100K 写入行/�
 **Q: 地区并列显示港澳台和国家**
 
 为了方便用户查看，前端并列显示港澳台和国家，但是旗帜都统一是中国国旗，后端返回的是region字段，这里是输出国家和地区，而不是国家，地图符合中华人民共和国自然资源部标准地图制作（审图号：GS(2023)2767 号）。
+
+**Q: 国内服务器无法上报**
+
+1. CF有托管域名的话，绑定一个域名可用解决绝大多数上报问题
+2. 如果没有域名可以绑定，或者绑定域名还是无法访问，可以改本地host解决，本地ping一个cf的cdn ip，改host解析. `echo [ip] [你的项目名.你的子域.workers.dev] | sudo tee -a /etc/hosts`
 
 </details>
 
